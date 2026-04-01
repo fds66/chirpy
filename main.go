@@ -23,16 +23,16 @@ func main() {
 	//fileserver with built-in handler
 	handler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(handler))
-	//serveMux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot))))
+
+	//register our handlers, this wraps them in HandleFunc which gives them the ServeHTTP method
+	serveMux.HandleFunc("GET /healthz", handlerReady)
+	serveMux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
+	serveMux.HandleFunc("POST /reset", apiCfg.handlerReset)
 
 	svr := http.Server{
 		Addr:    ":" + port,
 		Handler: serveMux,
 	}
-	//register our handler
-	serveMux.HandleFunc("/healthz", handlerReady)
-	serveMux.HandleFunc("/metrics", apiCfg.handlerMetrics)
-	serveMux.HandleFunc("/reset", apiCfg.handlerReset)
 
 	fmt.Println("serving")
 	log.Printf("Serving files from %s on port: %s\n", filepathRoot, port)
@@ -59,6 +59,7 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
 	message := fmt.Sprintf("Hits: %v", cfg.fileserverHits.Load())
 	w.Write([]byte(message))
 }
