@@ -25,9 +25,9 @@ func main() {
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(handler))
 
 	//register our handlers, this wraps them in HandleFunc which gives them the ServeHTTP method
-	serveMux.HandleFunc("GET /healthz", handlerReady)
-	serveMux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
-	serveMux.HandleFunc("POST /reset", apiCfg.handlerReset)
+	serveMux.HandleFunc("GET /api/healthz", handlerReady)
+	serveMux.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
+	serveMux.HandleFunc("POST /api/reset", apiCfg.handlerReset)
 
 	svr := http.Server{
 		Addr:    ":" + port,
