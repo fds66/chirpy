@@ -28,6 +28,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", handlerReady)
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 
 	svr := http.Server{
 		Addr:    ":" + port,
@@ -37,33 +38,4 @@ func main() {
 	fmt.Println("serving")
 	log.Printf("Serving files from %s on port: %s\n", filepathRoot, port)
 	log.Fatal(svr.ListenAndServe())
-}
-
-// handler that gives the ready response
-func handlerReady(w http.ResponseWriter, r *http.Request) {
-	//Header
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(http.StatusText(http.StatusOK)))
-}
-
-// middleware method on *apiConfig to increment the fileserverHits counter every time it is called
-
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		newCount := cfg.fileserverHits.Add(1)
-		fmt.Printf("new count %v\n", newCount)
-		next.ServeHTTP(w, r)
-	})
-}
-func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
-	message := fmt.Sprintf("<html>  <body>    <h1>Welcome, Chirpy Admin</h1>    <p>Chirpy has been visited %d times!</p>  </body></html>", cfg.fileserverHits.Load())
-	w.Write([]byte(message))
-}
-
-func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits.Store(0)
 }
