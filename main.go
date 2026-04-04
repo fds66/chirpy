@@ -16,25 +16,25 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	dbQ            *database.Queries
+	db             *database.Queries
 }
 
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	fmt.Printf("dbURL %s\n", dbURL)
-	db, err := sql.Open("postgres", dbURL)
+	dbConn, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		fmt.Printf("error opening database connections")
 		os.Exit(1)
 	}
-	dbQueries := database.New(db)
+	dbQueries := database.New(dbConn)
 
 	const filepathRoot = "."
 	const port = "8080"
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
-		dbQ:            dbQueries,
+		db:             dbQueries,
 	}
 
 	//Initialise the Mux
