@@ -17,11 +17,19 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
+	}
+	platformString := os.Getenv("PLATFORM")
+	if platformString == "" {
+		log.Fatal("PLATFORM must be set")
+	}
 	fmt.Printf("dbURL %s\n", dbURL)
 	dbConn, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -35,6 +43,7 @@ func main() {
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		platform:       platformString,
 	}
 
 	//Initialise the Mux
@@ -48,6 +57,7 @@ func main() {
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	serveMux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+	serveMux.HandleFunc("POST /api/users", apiCfg.handlerUsersCreate)
 
 	svr := http.Server{
 		Addr:    ":" + port,
