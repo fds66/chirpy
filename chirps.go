@@ -40,7 +40,7 @@ type Chirp struct {
 	UserID    uuid.UUID `json:"user_id"`
 }
 
-func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	const maxChirpLength = 140
 	//fmt.Println("validate handler")
 	decoder := json.NewDecoder(r.Body)
@@ -73,17 +73,43 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//fmt.Printf("createdChirp %+v\n", createdChirp)
-	respBody := Chirp{
-		ID:        createdChirp.ID,
-		CreatedAt: createdChirp.CreatedAt,
-		UpdatedAt: createdChirp.UpdatedAt,
-		Body:      createdChirp.Body,
-		UserID:    createdChirp.UserID,
-	}
+	/*
+		respBody := Chirp{
+			ID:        createdChirp.ID,
+			CreatedAt: createdChirp.CreatedAt,
+			UpdatedAt: createdChirp.UpdatedAt,
+			Body:      createdChirp.Body,
+			UserID:    createdChirp.UserID,
+		}
+	*/
 	//fmt.Printf("respBody %+v\n", respBody)
-
+	respBody := convertDatabaseToLocalChirp(&createdChirp)
 	respondWithJSON(w, 201, respBody)
 
+}
+func convertDatabaseToLocalChirp(in *database.Chirp) Chirp {
+	return Chirp{
+		ID:        in.ID,
+		CreatedAt: in.CreatedAt,
+		UpdatedAt: in.UpdatedAt,
+		Body:      in.Body,
+		UserID:    in.UserID,
+	}
+}
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetAllChirpsSorted(context.Background())
+	if err != nil {
+		log.Printf("Error creating chirp record %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	allChirps := make([]Chirp, len(chirps))
+	for i, chirp := range chirps {
+		allChirps[i] = convertDatabaseToLocalChirp(&chirp)
+
+	}
+	respondWithJSON(w, 200, allChirps)
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
