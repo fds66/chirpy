@@ -10,22 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-/*
-request
-
-	{
-	  "email": "user@example.com"
-	}
-
-response HTTP 201 created
-
-	{
-	  "id": "50746277-23c6-4d85-a890-564c0044c2fb",
-	  "created_at": "2021-07-07T00:00:00Z",
-	  "updated_at": "2021-07-07T00:00:00Z",
-	  "email": "user@example.com"
-	}
-*/
 type userJsonStruct struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
