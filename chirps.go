@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+
+	//"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -26,33 +27,6 @@ type returnJsonVals struct {
 	CleanedBody string `json:"cleaned_body"`
 }
 
-/*
-accepts
-
-		{
-		  "body": "Hello, world!",
-		  "user_id": "123e4567-e89b-12d3-a456-426614174000"
-		}
-
-		  respond 201 and
-		  {
-		  "id": "94b7e44c-3604-42e3-bef7-ebfcc3efff8f",
-		  "created_at": "2021-01-01T00:00:00Z",
-		  "updated_at": "2021-01-01T00:00:00Z",
-		  "body": "Hello, world!",
-		  "user_id": "123e4567-e89b-12d3-a456-426614174000"
-		}
-		database type
-		type CreateChirpParams struct {
-			Body   string
-			UserID uuid.UUID
-		}
-		type apiConfig struct {
-		fileserverHits atomic.Int32
-		db             *database.Queries
-		platform       string
-	}
-*/
 type CreateChirpParams struct {
 	Body   string    `json:"body"`
 	UserID uuid.UUID `json:"user_id"`
@@ -90,7 +64,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		Body:   cleanedBody,
 		UserID: params.UserID,
 	}
-	fmt.Printf("params %s\n%v\n, createParams %s\n%v\n", params.Body, params.UserID, createParams.Body, createParams.UserID)
+	//fmt.Printf("params %s\n%v\n, createParams %s\n%v\n", params.Body, params.UserID, createParams.Body, createParams.UserID)
 
 	createdChirp, err := cfg.db.CreateChirp(context.Background(), createParams)
 	if err != nil {
@@ -98,7 +72,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
-	fmt.Printf("createdChirp %+v\n", createdChirp)
+	//fmt.Printf("createdChirp %+v\n", createdChirp)
 	respBody := Chirp{
 		ID:        createdChirp.ID,
 		CreatedAt: createdChirp.CreatedAt,
@@ -106,7 +80,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		Body:      createdChirp.Body,
 		UserID:    createdChirp.UserID,
 	}
-	fmt.Printf("respBody %+v\n", respBody)
+	//fmt.Printf("respBody %+v\n", respBody)
 
 	respondWithJSON(w, 201, respBody)
 

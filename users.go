@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,12 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 	newUser, err := cfg.db.CreateUser(context.Background(), params.Email)
 	if err != nil {
 		log.Printf("Error creating user %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		if strings.Contains(err.Error(), "duplicate key") {
+			respondWithError(w, http.StatusInternalServerError, "Duplicate user", err)
+		} else {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		}
+
 		return
 	}
 	respBody := userJsonStruct{
