@@ -1,34 +1,76 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"workspace/fds66/github.com/fds66/chirpy/internal/database"
+
+	"github.com/google/uuid"
 )
 
-type parameters struct {
-	Body string `json:"body"`
-}
+//type parameters struct {
+//Body string `json:"body"`
+//}
 
 type returnErrorVals struct {
 	ErrorMessage string `json:"error"`
 }
 
-/*
-	type returnJsonVals struct {
-		Valid bool `json:"valid"`
-	}
-*/
 type returnJsonVals struct {
 	CleanedBody string `json:"cleaned_body"`
 }
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+/*
+accepts
+
+		{
+		  "body": "Hello, world!",
+		  "user_id": "123e4567-e89b-12d3-a456-426614174000"
+		}
+
+		  respond 201 and
+		  {
+		  "id": "94b7e44c-3604-42e3-bef7-ebfcc3efff8f",
+		  "created_at": "2021-01-01T00:00:00Z",
+		  "updated_at": "2021-01-01T00:00:00Z",
+		  "body": "Hello, world!",
+		  "user_id": "123e4567-e89b-12d3-a456-426614174000"
+		}
+		database type
+		type CreateChirpParams struct {
+			Body   string
+			UserID uuid.UUID
+		}
+		type apiConfig struct {
+		fileserverHits atomic.Int32
+		db             *database.Queries
+		platform       string
+	}
+*/
+type CreateChirpParams struct {
+	Body   string    `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	const maxChirpLength = 140
 	//fmt.Println("validate handler")
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := CreateChirpParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding request %v", err)
@@ -42,12 +84,31 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		//bad request 400
 		return
 	}
-	cleanedChirp := cleanString(params.Body)
-	respBody := returnJsonVals{
-		CleanedBody: cleanedChirp,
-	}
+	cleanedBody := cleanString(params.Body)
 
-	respondWithJSON(w, 200, respBody)
+	createParams := database.CreateChirpParams{
+		Body:   cleanedBody,
+		UserID: params.UserID,
+	}
+	fmt.Printf("params %s\n%v\n, createParams %s\n%v\n", params.Body, params.UserID, createParams.Body, createParams.UserID)
+
+	createdChirp, err := cfg.db.CreateChirp(context.Background(), createParams)
+	if err != nil {
+		log.Printf("Error creating chirp record %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	fmt.Printf("createdChirp %+v\n", createdChirp)
+	respBody := Chirp{
+		ID:        createdChirp.ID,
+		CreatedAt: createdChirp.CreatedAt,
+		UpdatedAt: createdChirp.UpdatedAt,
+		Body:      createdChirp.Body,
+		UserID:    createdChirp.UserID,
+	}
+	fmt.Printf("respBody %+v\n", respBody)
+
+	respondWithJSON(w, 201, respBody)
 
 }
 
