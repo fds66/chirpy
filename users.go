@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"workspace/fds66/github.com/fds66/chirpy/internal/auth"
+	"workspace/fds66/github.com/fds66/chirpy/internal/database"
 )
 
 type userJsonStruct struct {
@@ -19,25 +22,43 @@ type userJsonStruct struct {
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
-	type emailParameters struct {
-		Email string `json:"email"`
+	type InputParameters struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 	decoder := json.NewDecoder(r.Body)
-	params := emailParameters{}
-	err := decoder.Decode(&params)
+	inputParams := InputParameters{}
+	err := decoder.Decode(&inputParams)
 	if err != nil {
 		log.Printf("Error decoding request %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
 	//fmt.Printf("email %s", params.Email)
-	if len(params.Email) == 0 {
+	if len(inputParams.Email) == 0 {
 		log.Printf("No email address found")
 		respondWithError(w, http.StatusBadRequest, "No email address found", nil)
 		//bad request 400
 		return
 	}
-	newUser, err := cfg.db.CreateUser(context.Background(), params.Email)
+	if len(inputParams.Password) == 0 {
+		log.Printf("No password found")
+		respondWithError(w, http.StatusBadRequest, "No password found", nil)
+		//bad request 400
+		return
+	}
+	hashedPassword, err := auth.HashPassword(inputParams.Password)
+	if err != nil {
+		log.Printf("Error hashing password %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+
+	createParams := database.CreateUserParams{
+		Email:          inputParams.Email,
+		HashedPassword: hashedPassword,
+	}
+	newUser, err := cfg.db.CreateUser(context.Background(), createParams)
 	if err != nil {
 		log.Printf("Error creating user %v", err)
 		if strings.Contains(err.Error(), "duplicate key") {
@@ -54,6 +75,6 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		UpdatedAt: newUser.UpdatedAt,
 		Email:     newUser.Email,
 	}
-	respondWithJSON(w, 201, respBody)
+	respondWithJSON(w, 200, respBody)
 
 }

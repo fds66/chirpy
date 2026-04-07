@@ -64,7 +64,6 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 		Body:   cleanedBody,
 		UserID: params.UserID,
 	}
-	//fmt.Printf("params %s\n%v\n, createParams %s\n%v\n", params.Body, params.UserID, createParams.Body, createParams.UserID)
 
 	createdChirp, err := cfg.db.CreateChirp(context.Background(), createParams)
 	if err != nil {
@@ -72,17 +71,7 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
-	//fmt.Printf("createdChirp %+v\n", createdChirp)
-	/*
-		respBody := Chirp{
-			ID:        createdChirp.ID,
-			CreatedAt: createdChirp.CreatedAt,
-			UpdatedAt: createdChirp.UpdatedAt,
-			Body:      createdChirp.Body,
-			UserID:    createdChirp.UserID,
-		}
-	*/
-	//fmt.Printf("respBody %+v\n", respBody)
+
 	respBody := convertDatabaseToLocalChirp(&createdChirp)
 	respondWithJSON(w, 201, respBody)
 
