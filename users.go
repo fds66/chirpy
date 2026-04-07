@@ -21,30 +21,17 @@ type userJsonStruct struct {
 	Email     string    `json:"email"`
 }
 
+type UserInputParameters struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
+
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
-	type InputParameters struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	inputParams := InputParameters{}
-	err := decoder.Decode(&inputParams)
+
+	inputParams, err := userInput(w, r)
 	if err != nil {
-		log.Printf("Error decoding request %v", err)
+		log.Printf("Error validating user input parameters %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
-		return
-	}
-	//fmt.Printf("email %s", params.Email)
-	if len(inputParams.Email) == 0 {
-		log.Printf("No email address found")
-		respondWithError(w, http.StatusBadRequest, "No email address found", nil)
-		//bad request 400
-		return
-	}
-	if len(inputParams.Password) == 0 {
-		log.Printf("No password found")
-		respondWithError(w, http.StatusBadRequest, "No password found", nil)
-		//bad request 400
 		return
 	}
 	hashedPassword, err := auth.HashPassword(inputParams.Password)
@@ -75,6 +62,66 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		UpdatedAt: newUser.UpdatedAt,
 		Email:     newUser.Email,
 	}
-	respondWithJSON(w, 200, respBody)
+	respondWithJSON(w, 201, respBody)
 
+}
+
+func userInput(w http.ResponseWriter, r *http.Request) (UserInputParameters, error) {
+	decoder := json.NewDecoder(r.Body)
+	inputParams := UserInputParameters{}
+	err := decoder.Decode(&inputParams)
+	if err != nil {
+		log.Printf("Error decoding request %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return UserInputParameters{}, err
+	}
+	//fmt.Printf("email %s", params.Email)
+	if len(inputParams.Email) == 0 {
+		log.Printf("No email address found")
+		respondWithError(w, http.StatusBadRequest, "No email address found", nil)
+		//bad request 400, err
+	}
+	if len(inputParams.Password) == 0 {
+		log.Printf("No password found")
+		respondWithError(w, http.StatusBadRequest, "No password found", nil)
+		//bad request 400
+		return UserInputParameters{}, err
+	}
+	return inputParams, nil
+
+}
+
+func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) {
+	inputParams, err := userInput(w, r)
+	if err != nil {
+		log.Printf("Error validating user input parameters %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	//lookup user in database by email
+	user, err := cfg.db.GetUserByEmail(context.Background(), inputParams.Email)
+	if err != nil {
+		log.Printf("Error looking up user by email %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+	passwordCheck, err := auth.CheckPasswordHash(inputParams.Password, user.HashedPassword)
+	if err != nil {
+		log.Printf("Error checking password %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+	if passwordCheck == false {
+		log.Printf("Password check failed ")
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+
+	respBody := userJsonStruct{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+	respondWithJSON(w, 200, respBody)
 }
