@@ -112,6 +112,34 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, 200, allChirps)
 }
 
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	//func (r *Request) PathValue(name string) string
+	chirpIDString := r.PathValue("chirpID")
+	if chirpIDString == "" {
+		log.Printf("No chirp ID found")
+		respondWithError(w, http.StatusBadRequest, "No chirp ID found", nil)
+		//bad request 400
+		return
+	}
+	// convert incoming string ID to a uuid.UUID value
+	chirpID, err := uuid.Parse(chirpIDString)
+	if err != nil {
+		log.Printf("Error converting chirp ID %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+
+	foundChirp, err := cfg.db.GetChirpByID(context.Background(), chirpID)
+	if err != nil {
+		log.Printf("Error retrieving chirp from database %v", err)
+		respondWithError(w, 404, "Something went wrong", err)
+		return
+	}
+	respBody := convertDatabaseToLocalChirp(&foundChirp)
+	respondWithJSON(w, 200, respBody)
+
+}
+
 func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
 	if err != nil {
 		log.Println(err)
