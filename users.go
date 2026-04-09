@@ -19,16 +19,18 @@ type userJsonStruct struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token"`
 }
 
 type UserInputParameters struct {
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	Password           string `json:"password"`
+	Email              string `json:"email"`
+	Expires_in_seconds int    `json:"expires_in_seconds"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
 
-	inputParams, err := userInput(w, r)
+	inputParams, err := userInput(w, r, 0)
 	if err != nil {
 		log.Printf("Error validating user input parameters %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
@@ -66,7 +68,7 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 
 }
 
-func userInput(w http.ResponseWriter, r *http.Request) (UserInputParameters, error) {
+func userInput(w http.ResponseWriter, r *http.Request, defaultExpire int) (UserInputParameters, error) {
 	decoder := json.NewDecoder(r.Body)
 	inputParams := UserInputParameters{}
 	err := decoder.Decode(&inputParams)
@@ -87,17 +89,24 @@ func userInput(w http.ResponseWriter, r *http.Request) (UserInputParameters, err
 		//bad request 400
 		return UserInputParameters{}, err
 	}
+	if inputParams.Expires_in_seconds == 0 || inputParams.Expires_in_seconds > 3600 {
+		inputParams.Expires_in_seconds = defaultExpire
+	}
+
 	return inputParams, nil
 
 }
 
 func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) {
-	inputParams, err := userInput(w, r)
+	// default expiration of the token in seconds, 1hour = 3600 secs
+	defaultExpire := 3600
+	inputParams, err := userInput(w, r, defaultExpire)
 	if err != nil {
 		log.Printf("Error validating user input parameters %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
+
 	//lookup user in database by email
 	user, err := cfg.db.GetUserByEmail(context.Background(), inputParams.Email)
 	if err != nil {
@@ -105,6 +114,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
 		return
 	}
+
 	passwordCheck, err := auth.CheckPasswordHash(inputParams.Password, user.HashedPassword)
 	if err != nil {
 		log.Printf("Error checking password %v", err)
@@ -116,12 +126,16 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
 		return
 	}
+	// user password correct so generate JWT token
+	expireTime := time.Duration(inputParams.Expires_in_seconds) * time.Second
+	userToken, err := auth.MakeJWT(user.ID, cfg.secret, expireTime)
 
 	respBody := userJsonStruct{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     userToken,
 	}
 	respondWithJSON(w, 200, respBody)
 }

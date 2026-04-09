@@ -2,6 +2,8 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -56,19 +58,51 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &recClaims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(tokenSecret), nil
 	})
+
 	if err != nil {
 		errorMessage := fmt.Errorf("Error creating token string %w", err)
 		return uuid.UUID{}, errorMessage
 	}
 	user, err := token.Claims.GetSubject()
+
 	if err != nil {
 		errorMessage := fmt.Errorf("Error getting subject string %w", err)
 		return uuid.UUID{}, errorMessage
 	}
 	userID, err := uuid.Parse(user)
+
 	if err != nil {
 		errorMessage := fmt.Errorf("Error converting subject string to uuid %w", err)
 		return uuid.UUID{}, errorMessage
 	}
 	return userID, nil
 }
+
+func GetBearerToken(headers http.Header) (string, error) {
+	//fmt.Printf("received header %v\n", headers)
+
+	//look for authorization header , Bearer TOKEN_STRING
+	bearerToken := headers.Get("Authorization")
+	//fmt.Printf("bearer token string %s\n", bearerToken)
+	if bearerToken == "" {
+		errorMessage := fmt.Errorf("No bearer token found ")
+		fmt.Println("empty string from get")
+		return "", errorMessage
+	}
+	if !strings.Contains(bearerToken, "Bearer") {
+		errorMessage := fmt.Errorf("No bearer token found ")
+		fmt.Println("no Bearer found in string")
+		return "", errorMessage
+	}
+	bearerToken = strings.Replace(bearerToken, "Bearer", "", 1)
+	bearerToken = strings.TrimSpace(bearerToken)
+	//fmt.Printf("final bearerToken %s\n", bearerToken)
+	return bearerToken, nil
+
+}
+
+/*
+type Header map[string][]string
+func (h Header) Get(key string) string
+
+*/

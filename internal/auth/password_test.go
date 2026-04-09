@@ -2,6 +2,7 @@ package auth
 
 import (
 	//"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -141,6 +142,66 @@ func TestValidateJWT(t *testing.T) {
 
 		if result != c.expected {
 			t.Errorf("JWT check gave inaccurate answer, actual %v, expected %v", result, c.expected)
+		}
+		// if they don't match, use t.Errorf to print an error message
+		// and fail the test
+
+	}
+}
+
+// Header map[string][]string
+func TestGetBearerToken(t *testing.T) {
+	header1 := http.Header{}
+	header1.Add("Authorization", "Bearer TOKEN_STRING")
+	header2 := http.Header{}
+	header2.Add("Authorization", "TOKEN_STRING")
+	header3 := http.Header{}
+	header3.Add("Content-Type", "application/json")
+	header4 := http.Header{}
+	header4.Add("Authorization", "")
+
+	cases := []struct {
+		input    http.Header
+		expected string
+		err      bool
+	}{
+		{
+			input:    header1,
+			expected: "TOKEN_STRING",
+			err:      false,
+		},
+		{
+			input:    header2,
+			expected: "",
+			err:      true,
+		},
+		{
+			input:    header3,
+			expected: "",
+			err:      true,
+		},
+		{
+			input:    header4,
+			expected: "",
+			err:      true,
+		},
+
+		// add more cases here
+	}
+	for _, c := range cases {
+		output, outputerr := GetBearerToken(c.input)
+		var errorNil bool
+		if outputerr != nil {
+			errorNil = false
+		} else {
+			errorNil = true
+		}
+
+		// if they don't match, use t.Errorf to print an error message
+		// and fail the test
+
+		if output != c.expected {
+			t.Errorf("Output not as expected, expected %s,%v,  received  %s, %v, %v", c.expected, c.err, output, outputerr, errorNil)
 		}
 		// if they don't match, use t.Errorf to print an error message
 		// and fail the test

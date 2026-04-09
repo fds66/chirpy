@@ -18,6 +18,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	secret         string
 }
 
 func main() {
@@ -37,6 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 	dbQueries := database.New(dbConn)
+	secret := os.Getenv("SECRET")
 
 	const filepathRoot = "."
 	const port = "8080"
@@ -44,6 +46,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platformString,
+		secret:         secret,
 	}
 
 	//Initialise the Mux

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 
-	//"fmt"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"workspace/fds66/github.com/fds66/chirpy/internal/auth"
 	"workspace/fds66/github.com/fds66/chirpy/internal/database"
 
 	"github.com/google/uuid"
@@ -42,13 +43,27 @@ type Chirp struct {
 
 func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	const maxChirpLength = 140
-	//fmt.Println("validate handler")
+
 	decoder := json.NewDecoder(r.Body)
 	params := CreateChirpParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding request %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
+		return
+	}
+	userJWT, err := auth.ValidateJWT(token, cfg.secret)
+	fmt.Printf("returned userJWT and error from ValidateJWT %v, %v\n", userJWT, err)
+	if err != nil {
+		log.Printf("Error checking JWT %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
 		return
 	}
 
@@ -62,7 +77,7 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 
 	createParams := database.CreateChirpParams{
 		Body:   cleanedBody,
-		UserID: params.UserID,
+		UserID: userJWT,
 	}
 
 	createdChirp, err := cfg.db.CreateChirp(context.Background(), createParams)
