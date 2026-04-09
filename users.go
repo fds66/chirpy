@@ -15,22 +15,22 @@ import (
 )
 
 type userJsonStruct struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 type UserInputParameters struct {
-	Password           string `json:"password"`
-	Email              string `json:"email"`
-	Expires_in_seconds int    `json:"expires_in_seconds"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
 
-	inputParams, err := userInput(w, r, 0)
+	inputParams, err := userInput(w, r)
 	if err != nil {
 		log.Printf("Error validating user input parameters %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
@@ -68,7 +68,7 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 
 }
 
-func userInput(w http.ResponseWriter, r *http.Request, defaultExpire int) (UserInputParameters, error) {
+func userInput(w http.ResponseWriter, r *http.Request) (UserInputParameters, error) {
 	decoder := json.NewDecoder(r.Body)
 	inputParams := UserInputParameters{}
 	err := decoder.Decode(&inputParams)
@@ -89,18 +89,15 @@ func userInput(w http.ResponseWriter, r *http.Request, defaultExpire int) (UserI
 		//bad request 400
 		return UserInputParameters{}, err
 	}
-	if inputParams.Expires_in_seconds == 0 || inputParams.Expires_in_seconds > 3600 {
-		inputParams.Expires_in_seconds = defaultExpire
-	}
 
 	return inputParams, nil
 
 }
 
 func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) {
-	// default expiration of the token in seconds, 1hour = 3600 secs
-	defaultExpire := 3600
-	inputParams, err := userInput(w, r, defaultExpire)
+	// default expiration of the JWT token in seconds, 1hour = 3600 secs
+
+	inputParams, err := userInput(w, r)
 	if err != nil {
 		log.Printf("Error validating user input parameters %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
@@ -127,15 +124,120 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// user password correct so generate JWT token
-	expireTime := time.Duration(inputParams.Expires_in_seconds) * time.Second
+	//JWT token expires after an hour
+	defaultExpire := 3600
+	expireTime := time.Duration(defaultExpire) * time.Second
 	userToken, err := auth.MakeJWT(user.ID, cfg.secret, expireTime)
+	if err != nil {
+		log.Printf("Error making JWT %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Something went wrong", err)
+		return
+	}
+	refreshT := auth.MakeRefreshToken()
+	/*
+			type CreateRefreshTokenParams struct {
+			Token     string
+			UserID    uuid.UUID
+			ExpiresAt time.Time
+			RevokedAt sql.NullTime
+		}
+	*/
+	//expires in 60 days
+	expiration_date := time.Now()
+	expiration_date.AddDate(0, 0, 60)
+	refreshParams := database.CreateRefreshTokenParams{
+		Token:     refreshT,
+		UserID:    user.ID,
+		ExpiresAt: expiration_date,
+	}
+	newRefreshToken, err := cfg.db.CreateRefreshToken(context.Background(), refreshParams)
 
 	respBody := userJsonStruct{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     userToken,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        userToken,
+		RefreshToken: newRefreshToken.Token,
 	}
 	respondWithJSON(w, 200, respBody)
+}
+func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
+		return
+	}
+	tokenRecord, err := cfg.db.GetRefreshTokenByToken(context.Background(), token)
+	if err != nil {
+		log.Printf("Error finding token in database %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Not authorised", err)
+		return
+	}
+	currentTime := time.Now()
+	if currentTime.After(tokenRecord.ExpiresAt) {
+		log.Printf("Refresh token expired %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Not authorised", err)
+		return
+	}
+	if tokenRecord.RevokedAt.Valid == true {
+		log.Printf("Refresh token revoked %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Not authorised", err)
+		return
+	}
+	defaultExpire := 3600
+	expireTime := time.Duration(defaultExpire) * time.Second
+	newToken, err := auth.MakeJWT(tokenRecord.UserID, cfg.secret, expireTime)
+	if err != nil {
+		log.Printf("Error making JWT %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	type outputToken struct {
+		Token string `json:"token"`
+	}
+	respBody := outputToken{
+		Token: newToken,
+	}
+	respondWithJSON(w, 200, respBody)
+}
+
+/*
+	type RefreshToken struct {
+		Token     string
+		CreatedAt time.Time
+		UpdatedAt time.Time
+		UserID    uuid.UUID
+		ExpiresAt time.Time
+		RevokedAt sql.NullTime
+	}
+*/
+func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
+		return
+	}
+	tokenRecord, err := cfg.db.GetRefreshTokenByToken(context.Background(), token)
+	if err != nil {
+		log.Printf("Error finding token in database %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Not authorised", err)
+		return
+	}
+
+	cfg.db.RevokeToken(context.Background(), tokenRecord.Token)
+	//check it worked
+	/*
+		updatedRecord, err := cfg.db.GetRefreshTokenByToken(context.Background(), tokenRecord.Token)
+		if err != nil {
+			log.Printf("Error finding token in database %v", err)
+
+			return
+		}
+		log.Printf("updated record to check if it worked %+v\n", updatedRecord)
+	*/
+	w.WriteHeader(204)
+
 }
