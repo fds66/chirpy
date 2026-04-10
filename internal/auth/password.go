@@ -114,3 +114,24 @@ func MakeRefreshToken() string {
 	token := hex.EncodeToString(key)
 	return token
 }
+
+func GetAPIKey(headers http.Header) (string, error) {
+	//fmt.Printf("header passed in %v\n", headers)
+	apiKey := headers.Get("Authorization")
+	//fmt.Printf("API key string %s\n", apiKey)
+	if apiKey == "" {
+		errorMessage := fmt.Errorf("No API Key found ")
+		fmt.Println("empty string from get")
+		return "", errorMessage
+	}
+	if !strings.Contains(apiKey, "ApiKey") {
+		errorMessage := fmt.Errorf("No API Key found ")
+		fmt.Println("no ApiKey found in string")
+		return "", errorMessage
+	}
+	apiKey = strings.Replace(apiKey, "ApiKey", "", 1)
+	apiKey = strings.TrimSpace(apiKey)
+	//fmt.Printf("final bearerToken %s\n", bearerToken)
+	return apiKey, nil
+
+}

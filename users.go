@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -311,10 +312,24 @@ func (cfg *apiConfig) handlerPolkaWebhook(w http.ResponseWriter, r *http.Request
 			UserID string `json:"user_id"`
 		} `json:"data"`
 	}
-
+	//fmt.Printf("request header in handler %v\n", r)
+	fmt.Println()
+	// check if the API key is correct
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		log.Printf("Error getting APIKey %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	//fmt.Printf("incoming apikey and stored apikey __%s__, __%s__\n", apiKey, cfg.polkaKey)
+	if apiKey != cfg.polkaKey {
+		log.Printf("APIKey does not match %v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	decoder := json.NewDecoder(r.Body)
 	params := InputPolkaWebhook{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding request %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
