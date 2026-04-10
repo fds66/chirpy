@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -50,28 +51,14 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
+	// authenticate user via JWT
 	userJWT, err := cfg.AuthenticateUserByJWT(r.Header)
 	if err != nil {
 		log.Printf("Error extracting token %v\n", err)
 		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
 		return
 	}
-	// authenticate user via JWT
-	/*token, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		log.Printf("Error extracting token %v", err)
-		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
-		return
-	}
-	userJWT, err := auth.ValidateJWT(token, cfg.secret)
-	fmt.Printf("returned userJWT and error from ValidateJWT %v, %v\n", userJWT, err)
-	if err != nil {
-		log.Printf("Error checking JWT %v", err)
-		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
-		return
-	}
-	*/
-
+	// check if chirp follows rules
 	if len(params.Body) > maxChirpLength {
 		log.Printf("Chirp is too long")
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
@@ -122,31 +109,73 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+
+	foundChirp, err, code := cfg.chirpFromIDInRequest(r)
+	if err != nil {
+		log.Printf("Error retrieving chirp from database %v", err)
+		respondWithError(w, code, err.Error(), err)
+		return
+	}
+
+	respBody := convertDatabaseToLocalChirp(&foundChirp)
+	respondWithJSON(w, 200, respBody)
+
+}
+
+func (cfg *apiConfig) handlerDeleteChirpByID(w http.ResponseWriter, r *http.Request) {
 	//func (r *Request) PathValue(name string) string
+	// authenticate user by JWT token
+	userJWT, err := cfg.AuthenticateUserByJWT(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v\n", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	foundChirp, err, code := cfg.chirpFromIDInRequest(r)
+	if err != nil {
+		log.Printf("Error retrieving chirp from database %v", err)
+		respondWithError(w, code, err.Error(), err)
+		return
+	}
+	if userJWT != foundChirp.UserID {
+		log.Printf("UserID does not match chirp %v", err)
+		respondWithError(w, http.StatusForbidden, "Unauthorised", err)
+		return
+	}
+	err = cfg.db.DeleteChirpByID(context.Background(), foundChirp.ID)
+	if err != nil {
+		log.Printf("Error deleting chirp from database %v", err)
+		respondWithError(w, http.StatusInternalServerError, "something went wrong", err)
+		return
+	}
+	// if successful
+	w.WriteHeader(http.StatusNoContent)
+
+}
+
+func (cfg *apiConfig) chirpFromIDInRequest(r *http.Request) (database.Chirp, error, int) {
+	errorMessage := fmt.Errorf("Error")
 	chirpIDString := r.PathValue("chirpID")
 	if chirpIDString == "" {
 		log.Printf("No chirp ID found")
-		respondWithError(w, http.StatusBadRequest, "No chirp ID found", nil)
-		//bad request 400
-		return
+		errorMessage = fmt.Errorf("No chirp ID found")
+		return database.Chirp{}, errorMessage, http.StatusBadRequest
 	}
 	// convert incoming string ID to a uuid.UUID value
 	chirpID, err := uuid.Parse(chirpIDString)
 	if err != nil {
 		log.Printf("Error converting chirp ID %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
-		return
+		errorMessage = fmt.Errorf("Something went wrong")
+		return database.Chirp{}, errorMessage, http.StatusInternalServerError
 	}
-
-	foundChirp, err := cfg.db.GetChirpByID(context.Background(), chirpID)
+	var foundChirp database.Chirp
+	foundChirp, err = cfg.db.GetChirpByID(context.Background(), chirpID)
 	if err != nil {
 		log.Printf("Error retrieving chirp from database %v", err)
-		respondWithError(w, 404, "Something went wrong", err)
-		return
+		errorMessage = fmt.Errorf("Something went wrong")
+		return database.Chirp{}, errorMessage, http.StatusNotFound
 	}
-	respBody := convertDatabaseToLocalChirp(&foundChirp)
-	respondWithJSON(w, 200, respBody)
-
+	return foundChirp, nil, 0
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string, err error) {

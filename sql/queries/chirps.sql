@@ -20,3 +20,6 @@ WHERE user_id = $1;
 SELECT *
 FROM chirps
 ORDER BY created_at;
+-- name: DeleteChirpByID :exec
+DELETE FROM chirps
+WHERE id = $1;
