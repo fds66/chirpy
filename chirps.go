@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"workspace/fds66/github.com/fds66/chirpy/internal/auth"
 	"workspace/fds66/github.com/fds66/chirpy/internal/database"
 
 	"github.com/google/uuid"
@@ -52,8 +50,14 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 		return
 	}
-
-	token, err := auth.GetBearerToken(r.Header)
+	userJWT, err := cfg.AuthenticateUserByJWT(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v\n", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	// authenticate user via JWT
+	/*token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("Error extracting token %v", err)
 		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
@@ -66,6 +70,7 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusUnauthorized, "Incorrect Token", err)
 		return
 	}
+	*/
 
 	if len(params.Body) > maxChirpLength {
 		log.Printf("Chirp is too long")

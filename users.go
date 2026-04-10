@@ -243,7 +243,13 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 }
 func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, r *http.Request) {
 	// check the access token and extract the user id
-	token, err := auth.GetBearerToken(r.Header)
+	userJWT, err := cfg.AuthenticateUserByJWT(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v\n", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	/*token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("Error extracting token %v", err)
 		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
@@ -256,6 +262,7 @@ func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
 		return
 	}
+	*/
 	// retrieve the record for that user (just as a check, this can be skipped later on)
 	/*user, err := cfg.db.GetUserByID(context.Background(), userJWT)
 	if err != nil {
