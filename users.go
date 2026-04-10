@@ -241,3 +241,66 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 
 }
+func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, r *http.Request) {
+	// check the access token and extract the user id
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("Error extracting token %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	userJWT, err := auth.ValidateJWT(token, cfg.secret)
+	//fmt.Printf("returned userJWT and error from ValidateJWT %v, %v\n", userJWT, err)
+	if err != nil {
+		log.Printf("Error checking JWT %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	// retrieve the record for that user (just as a check, this can be skipped later on)
+	/*user, err := cfg.db.GetUserByID(context.Background(), userJWT)
+	if err != nil {
+		log.Printf("Error finding user in database %v\n", err)
+		respondWithError(w, http.StatusUnauthorized, "Unauthorised", err)
+		return
+	}
+	*/
+	// create the params struct to update the database from the body of the request
+	inputParams, err := userInput(w, r)
+	if err != nil {
+		log.Printf("Error validating user input parameters %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	hashedPassword, err := auth.HashPassword(inputParams.Password)
+	if err != nil {
+		log.Printf("Error hashing password %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	/*
+			type UpdateUserParams struct {
+			Email          string
+			HashedPassword string
+			ID             uuid.UUID
+		}
+	*/
+	updateParams := database.UpdateUserParams{
+		Email:          inputParams.Email,
+		HashedPassword: hashedPassword,
+		ID:             userJWT,
+	}
+	updatedUser, err := cfg.db.UpdateUser(context.Background(), updateParams)
+	if err != nil {
+		log.Printf("Error updating user record %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+		return
+	}
+	respBody := userJsonStruct{
+		ID:        updatedUser.ID,
+		CreatedAt: updatedUser.CreatedAt,
+		UpdatedAt: updatedUser.UpdatedAt,
+		Email:     updatedUser.Email,
+	}
+	respondWithJSON(w, 200, respBody)
+
+}
