@@ -15,7 +15,8 @@ WHERE id = $1;
 -- name: GetChirpsbyUserID :many
 SELECT *
 FROM chirps
-WHERE user_id = $1;
+WHERE user_id = $1
+ORDER BY created_at;
 -- name: GetAllChirpsSorted :many
 SELECT *
 FROM chirps

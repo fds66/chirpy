@@ -94,12 +94,33 @@ func convertDatabaseToLocalChirp(in *database.Chirp) Chirp {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.GetAllChirpsSorted(context.Background())
-	if err != nil {
-		log.Printf("Error creating chirp record %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
-		return
+
+	/*
+			s := r.URL.Query().Get("author_id")
+		// s is a string that contains the value of the author_id query parameter
+		// if it exists, or an empty string if it doesn't
+	*/
+	var chirps []database.Chirp
+	author := r.URL.Query().Get("author_id")
+	var err error
+
+	if author != "" {
+		authorID, err := uuid.Parse(author)
+		if err != nil {
+			log.Printf("Error converting author ID %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
+		chirps, err = cfg.db.GetChirpsbyUserID(context.Background(), authorID)
+	} else {
+		chirps, err = cfg.db.GetAllChirpsSorted(context.Background())
+		if err != nil {
+			log.Printf("Error creating chirp record %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
 	}
+
 	allChirps := make([]Chirp, len(chirps))
 	for i, chirp := range chirps {
 		allChirps[i] = convertDatabaseToLocalChirp(&chirp)
