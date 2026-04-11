@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"sort"
 
 	"fmt"
 	"log"
@@ -99,7 +100,9 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			s := r.URL.Query().Get("author_id")
 		// s is a string that contains the value of the author_id query parameter
 		// if it exists, or an empty string if it doesn't
+		GET /api/chirps?author_id=${waltID}
 	*/
+
 	var chirps []database.Chirp
 	author := r.URL.Query().Get("author_id")
 	var err error
@@ -119,6 +122,42 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 			return
 		}
+	}
+	/*
+			OPtional sort options
+			GET http://localhost:8080/api/chirps?sort=asc
+			GET http://localhost:8080/api/chirps?sort=desc
+			GET http://localhost:8080/api/chirps
+
+			default is asc which is the sort order from the sql query. Only need to resort if it is descending
+
+			sort.Slice
+
+			func Slice(x any, less func(i, j int) bool)
+
+			Slice sorts the slice x given the provided less function. It panics if x is not a slice.
+
+			The sort is not guaranteed to be stable: equal elements may be reversed from their original order. For a stable sort, use SliceStable.
+
+			The less function must satisfy the same requirements as the Interface type's Less method.
+
+
+			func (Time) After ¶
+		func (t Time) After(u Time) bool
+		After reports whether the time instant t is after u.
+
+
+			func (Time) Before ¶
+		func (t Time) Before(u Time) bool
+
+
+
+		}
+	*/
+	sortOpt := r.URL.Query().Get("sort")
+	if sortOpt == "desc" {
+		sort.Slice(chirps, func(i, j int) bool { return chirps[i].CreatedAt.After(chirps[j].CreatedAt) })
+
 	}
 
 	allChirps := make([]Chirp, len(chirps))
